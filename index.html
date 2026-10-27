@@ -705,7 +705,7 @@ function renderHome(){
   else if(today){big='Day '+(today.d-18);small='旅程進行中'}
   else {big='✓';small='旅程結束'}
   const left=TODOS.filter(x=>!checks[x.id]).length;
-  let h=`<div class="pres" id="pres">${window.__presHTML||''}</div><header class="hero" aria-label="${typeof big==='number'?`距離第一場還有 ${big} 天`:esc(small)}">
+  let h=`<header class="hero" aria-label="${typeof big==='number'?`距離第一場還有 ${big} 天`:esc(small)}">
     <h1>${esc(T.HERO||'距離第一場')}</h1>
     <div class="cd"><b>${big}</b>${typeof big==='number'?'<span>天</span>':''}</div>
   </header>
@@ -1162,15 +1162,12 @@ render();
 </script>
 
 <style>
-/* who is looking right now */
-.pres{display:flex;align-items:center;gap:8px;min-height:0;padding:0 6px;margin-bottom:-6px}
-.pres:empty{display:none}
-.pres .pav{display:flex}
-.pres .pa{position:relative;width:30px;height:30px;border-radius:50%;margin-left:-8px;background:var(--lav);color:#1B1B1B;display:grid;place-items:center;font:600 12.5px var(--f-body);box-shadow:0 0 0 2px var(--bg);overflow:visible}
-.pres .pa:first-child{margin-left:0}
-.pres .pa img{width:100%;height:100%;border-radius:50%;object-fit:cover}
-.pres .pa i{position:absolute;right:-1px;bottom:-1px;width:10px;height:10px;border-radius:50%;background:#3DD68C;box-shadow:0 0 0 2px var(--bg)}
-.pres span{font-size:13px;color:var(--fg-2)}
+/* green dot on the account button while someone else has the app open */
+#acct{position:relative}
+#acct .on{position:absolute;top:8px;right:8px;width:11px;height:11px;border-radius:50%;background:#3DD68C;box-shadow:0 0 0 2px var(--surface)}
+#acct .on[hidden]{display:none}
+.onl{display:flex;align-items:center;gap:8px;font-size:14px}
+.onl i{width:9px;height:9px;border-radius:50%;background:#3DD68C;flex:none}
 /* login gate + account sheet (outside the app) */
 body:not(.ready) .app,body:not(.ready) .nav{display:none!important}
 .gate{min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding:24px 16px}
@@ -1210,12 +1207,13 @@ body:not(.ready) .acct{display:none}
     <button class="gbtn ghost" id="gout" hidden>換一個帳號</button>
   </div>
 </div>
-<button class="acct" id="acct" aria-label="帳號與成員"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c1.2-3.6 3.8-5.5 7-5.5s5.8 1.9 7 5.5"/></svg></button>
+<button class="acct" id="acct" aria-label="帳號與成員"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c1.2-3.6 3.8-5.5 7-5.5s5.8 1.9 7 5.5"/></svg><span class="on" id="acctOn" hidden></span></button>
 <div class="sync" id="sync" hidden>離線中，改的內容連上網路後會自動同步</div>
 <div class="sheet" id="sheet" hidden>
   <div class="sbox" role="dialog" aria-modal="true" aria-labelledby="sh-t">
     <div class="shd"><h2 id="sh-t">帳號</h2><button class="wb ghost" id="shx" aria-label="關閉"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <div class="sme" id="sme"></div>
+    <div id="onbox" style="display:flex;flex-direction:column;gap:6px"></div>
     <div id="mbox" hidden style="display:flex;flex-direction:column;gap:10px">
       <h3 style="margin:8px 0 0;font:500 17px var(--f-body)">成員</h3>
       <p class="sme" style="margin:0">只有名單上的 Google 帳號能登入看和改行程。</p>
@@ -1299,12 +1297,13 @@ document.addEventListener('focusout',()=>setTimeout(()=>{if(pending&&!typing()){
 let presAll={};
 const presRef=()=>doc(db,'presence',me);
 function ping(off){const u=auth.currentUser;if(!u)return;setDoc(presRef(),{name:u.displayName||me.split('@')[0],photo:u.photoURL||'',at:serverTimestamp(),off:!!off}).catch(()=>{})}
+let onNow=[];
 function drawPres(){
   const now=Date.now();
-  const on=Object.entries(presAll).filter(([e,p])=>e!==me&&!p.off&&p.at&&now-p.at.toMillis()<70000).map(([e,p])=>p);
-  const first=n=>escH(String(n||'?').trim().slice(0,1).toUpperCase());
-  const html=on.length?`<span class="pav">${on.slice(0,5).map(p=>`<span class="pa" title="${escH(p.name)}">${p.photo?`<img src="${escH(p.photo)}" alt="" referrerpolicy="no-referrer">`:first(p.name)}<i></i></span>`).join('')}</span><span>${on.length===1?escH(on[0].name)+' 也在看':on.length+' 位朋友也在看'}</span>`:'';
-  window.__presHTML=html;const el=document.getElementById('pres');if(el&&el.innerHTML!==html)el.innerHTML=html;
+  onNow=Object.entries(presAll).filter(([e,p])=>e!==me&&!p.off&&p.at&&now-p.at.toMillis()<70000).map(([e,p])=>p.name||e.split('@')[0]);
+  $('acctOn').hidden=!onNow.length;
+  $('acct').setAttribute('aria-label',onNow.length?`帳號與成員，${onNow.length} 位朋友也在看`:'帳號與成員');
+  $('onbox').innerHTML=onNow.length?onNow.map(n=>`<div class="onl"><i></i>${escH(n)} 也在看</div>`).join(''):'<div class="sme">現在只有你在看</div>';
 }
 function startPresence(){
   onSnapshot(collection(db,'presence'),q=>{presAll={};q.forEach(d=>presAll[d.id]=d.data());drawPres()},()=>{});
