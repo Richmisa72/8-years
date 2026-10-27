@@ -705,7 +705,7 @@ function renderHome(){
   else if(today){big='Day '+(today.d-18);small='旅程進行中'}
   else {big='✓';small='旅程結束'}
   const left=TODOS.filter(x=>!checks[x.id]).length;
-  let h=`<header class="hero" aria-label="${typeof big==='number'?`距離第一場還有 ${big} 天`:esc(small)}">
+  let h=`<div class="pres" id="pres">${window.__presHTML||''}</div><header class="hero" aria-label="${typeof big==='number'?`距離第一場還有 ${big} 天`:esc(small)}">
     <h1>${esc(T.HERO||'距離第一場')}</h1>
     <div class="cd"><b>${big}</b>${typeof big==='number'?'<span>天</span>':''}</div>
   </header>
@@ -1162,6 +1162,15 @@ render();
 </script>
 
 <style>
+/* who is looking right now */
+.pres{display:flex;align-items:center;gap:8px;min-height:0;padding:0 6px;margin-bottom:-6px}
+.pres:empty{display:none}
+.pres .pav{display:flex}
+.pres .pa{position:relative;width:30px;height:30px;border-radius:50%;margin-left:-8px;background:var(--lav);color:#1B1B1B;display:grid;place-items:center;font:600 12.5px var(--f-body);box-shadow:0 0 0 2px var(--bg);overflow:visible}
+.pres .pa:first-child{margin-left:0}
+.pres .pa img{width:100%;height:100%;border-radius:50%;object-fit:cover}
+.pres .pa i{position:absolute;right:-1px;bottom:-1px;width:10px;height:10px;border-radius:50%;background:#3DD68C;box-shadow:0 0 0 2px var(--bg)}
+.pres span{font-size:13px;color:var(--fg-2)}
 /* login gate + account sheet (outside the app) */
 body:not(.ready) .app,body:not(.ready) .nav{display:none!important}
 .gate{min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding:24px 16px}
@@ -1286,7 +1295,26 @@ function applyRemote(data){
 }
 document.addEventListener('focusout',()=>setTimeout(()=>{if(pending&&!typing()){const p=pending;pending=null;window.__applyRemote&&window.__applyRemote(parse(p))}},50));
 
+/* presence: each signed-in viewer pings every 25s while the app is on screen */
+let presAll={};
+const presRef=()=>doc(db,'presence',me);
+function ping(off){const u=auth.currentUser;if(!u)return;setDoc(presRef(),{name:u.displayName||me.split('@')[0],photo:u.photoURL||'',at:serverTimestamp(),off:!!off}).catch(()=>{})}
+function drawPres(){
+  const now=Date.now();
+  const on=Object.entries(presAll).filter(([e,p])=>e!==me&&!p.off&&p.at&&now-p.at.toMillis()<70000).map(([e,p])=>p);
+  const first=n=>escH(String(n||'?').trim().slice(0,1).toUpperCase());
+  const html=on.length?`<span class="pav">${on.slice(0,5).map(p=>`<span class="pa" title="${escH(p.name)}">${p.photo?`<img src="${escH(p.photo)}" alt="" referrerpolicy="no-referrer">`:first(p.name)}<i></i></span>`).join('')}</span><span>${on.length===1?escH(on[0].name)+' 也在看':on.length+' 位朋友也在看'}</span>`:'';
+  window.__presHTML=html;const el=document.getElementById('pres');if(el&&el.innerHTML!==html)el.innerHTML=html;
+}
+function startPresence(){
+  onSnapshot(collection(db,'presence'),q=>{presAll={};q.forEach(d=>presAll[d.id]=d.data());drawPres()},()=>{});
+  ping(false);
+  setInterval(()=>{if(!document.hidden)ping(false);drawPres()},25000);
+  document.addEventListener('visibilitychange',()=>ping(document.hidden));
+  addEventListener('pagehide',()=>ping(true));
+}
 function boot(T){
+  startPresence();
   onSnapshot(stRef(),{includeMetadataChanges:true},s=>{
     $('sync').hidden=!s.metadata.fromCache||navigator.onLine;
     const data=s.exists()?s.data():{};
