@@ -697,8 +697,9 @@ const mapUrl=q=>'https://www.google.com/maps/search/?api=1&query='+encodeURIComp
 
 /* ---------- home ---------- */
 function renderHome(){
-  const first=new Date('2026-11-19T19:00:00+08:00');
-  const diff=Math.ceil((first-now)/864e5);
+  /* whole calendar days (Taiwan time) until 11/19 */
+  const tw=new Date(now.getTime()+8*3600e3), todayTW=Date.UTC(tw.getUTCFullYear(),tw.getUTCMonth(),tw.getUTCDate());
+  const diff=Math.round((Date.UTC(2026,10,19)-todayTW)/864e5);
   let big,small;
   if(diff>0){big=diff;small='距離第一場'}
   else if(today){big='Day '+(today.d-18);small='旅程進行中'}
@@ -1146,6 +1147,8 @@ document.addEventListener('click',e=>{
     const el=document.querySelector(`li[data-id="${it.id}"]`);el&&el.scrollIntoView({block:'center',behavior:'smooth'});return}
   if(t.classList.contains('row')){const id=t.closest('li').dataset.id,d=document.getElementById(t.getAttribute('aria-controls'));const open=t.getAttribute('aria-expanded')==='true';t.setAttribute('aria-expanded',String(!open));d.hidden=open;open?openItems.delete(id):openItems.add(id)}
 });
+/* new day while the app stays open (or comes back from the background): reload so the countdown and today's card update */
+{const dayKey=()=>new Date(Date.now()+8*3600e3).toISOString().slice(0,10);const k0=dayKey();const chk=()=>{if(dayKey()!==k0)location.reload()};document.addEventListener('visibilitychange',()=>{if(!document.hidden)chk()});setInterval(chk,60000)}
 window.__applyRemote=function(st){
   if(st.pl&&st.pl.order)PL=JSON.parse(JSON.stringify(st.pl)); fixPL();
   if(Array.isArray(st.wish))WISH=JSON.parse(JSON.stringify(st.wish));
