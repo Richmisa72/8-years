@@ -1225,11 +1225,19 @@ let db;try{db=initializeFirestore(app,{localCache:persistentLocalCache()})}catch
 const $=id=>document.getElementById(id);
 const msg=(t,showIn,showOut)=>{$('gmsg').textContent=t;$('gin').hidden=!showIn;$('gout').hidden=!showOut};
 const prov=new GoogleAuthProvider();prov.setCustomParameters({prompt:'select_account'});
+/* LINE / FB / IG in-app browsers cannot do Google sign-in: send LINE to the real browser, ask others to switch */
+const UA=navigator.userAgent||'';
+const inApp=/Line\/|FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|KAKAOTALK|WhatsApp|Messenger/i.test(UA);
+if(/Line\//i.test(UA)&&!/[?&]openExternalBrowser=1/.test(location.search)){location.replace(location.origin+location.pathname+'?openExternalBrowser=1'+location.hash)}
+function inAppMsg(){$('gmsg').innerHTML='你現在是用 App 內建的瀏覽器開的，Google 不允許在這裡登入。<br>請按右上角「⋯」選「用 Safari 開啟」，或複製網址貼到 Safari。';$('gin').hidden=true;$('gout').hidden=true;
+  if(!$('gcopy')){const b=document.createElement('button');b.id='gcopy';b.className='gbtn';b.textContent='複製網址';b.onclick=()=>{const u=location.origin+location.pathname;(navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(()=>b.textContent='已複製，貼到 Safari 打開',()=>prompt('複製這個網址，貼到 Safari：',u))};$('gin').after(b)}}
 
 $('gin').onclick=async()=>{
+  if(inApp){inAppMsg();return}
   try{await signInWithPopup(auth,prov)}
   catch(e){
-    if(['auth/popup-blocked','auth/operation-not-supported-in-this-environment','auth/web-storage-unsupported'].includes(e.code)){try{await signInWithRedirect(auth,prov)}catch(e2){msg('登入失敗：'+e2.code,true,false)}}
+    if(e.code==='auth/popup-blocked')msg('登入視窗被擋住了，請允許彈出視窗後再按一次。',true,false);
+    else if(e.code==='auth/operation-not-supported-in-this-environment'||e.code==='auth/web-storage-unsupported')inAppMsg();
     else if(e.code!=='auth/popup-closed-by-user'&&e.code!=='auth/cancelled-popup-request')msg('登入失敗，請再試一次（'+e.code+'）',true,false);
   }
 };
@@ -1239,7 +1247,7 @@ $('gout').onclick=out;$('sout').onclick=out;
 
 let started=false, me='', isOwner=false;
 onAuthStateChanged(auth,async u=>{
-  if(!u){msg('只有受邀的朋友可以進來，請用你的 Google 帳號登入。',true,false);return}
+  if(!u){if(inApp){inAppMsg();return}msg('只有受邀的朋友可以進來，請用你的 Google 帳號登入。',true,false);return}
   me=(u.email||'').toLowerCase(); isOwner=me===OWNER;
   msg('確認權限中…',false,false);
   try{
