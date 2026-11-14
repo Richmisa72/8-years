@@ -465,6 +465,13 @@ a{color:inherit}
 .ck[aria-checked="true"] .box{background:var(--lime);border-color:var(--lime);color:var(--on-accent)}
 .ck[aria-checked="true"] .box svg{opacity:1}
 .ck .tx{flex:1;min-width:0}
+.tph{display:flex;align-items:center;gap:10px}
+.ck.tdel{align-items:center}
+.ck.tdel .wb{margin:-4px 0}
+.tadd{display:flex;flex-direction:column;gap:8px;padding:8px 0 4px}
+.tadd .fi{background:rgba(255,255,255,.6);color:#1B1B1B}
+.tadd .fbtn{align-self:flex-end;display:inline-flex;align-items:center;gap:6px}
+.tadd .fbtn svg{width:16px;height:16px}
 .ck .tx div{font-weight:500;font-size:14.5px}
 .ck .tx small{display:block;color:var(--fg-2);font-size:12.5px}
 .ck[aria-checked="true"] .tx div{text-decoration:line-through;color:var(--fg-2)}
@@ -632,8 +639,11 @@ function trail(d,lg){const seen=[];d.items.forEach(i=>{if(i.cat!=='move'&&!seen.
 /* 行程資料：依朋友提供的版本整理 */
 const DAYS=T.DAYS;
 
-const TODOS=T.TODOS;
-const PACK=T.PACK;
+const TODOS0=T.TODOS, PACK0=T.PACK;
+/* 待確認 add/delete: kept inside the shared checks doc under _todo so it syncs with everyone */
+const TX=()=>{const o=checks._todo||(checks._todo={});o.add=o.add||[];o.del=o.del||{};return o};
+const TL=()=>{const o=TX();return TODOS0.filter(x=>!o.del[x.id]).concat(o.add.filter(x=>!x.pack))};
+const PL2=()=>{const o=TX();return PACK0.filter(x=>!o.del[x.id]).concat(o.add.filter(x=>x.pack))};
 
 DAYS.forEach(d=>d.tone=d.show?'lav':'lime');
 const MODES=T.MODES;
@@ -704,7 +714,7 @@ function renderHome(){
   if(diff>0){big=diff;small='距離第一場'}
   else if(today){big='Day '+(today.d-18);small='旅程進行中'}
   else {big='✓';small='旅程結束'}
-  const left=TODOS.filter(x=>!checks[x.id]).length;
+  const left=TL().filter(x=>!checks[x.id]).length;
   let h=`<header class="hero" aria-label="${typeof big==='number'?`距離第一場還有 ${big} 天`:esc(small)}">
     <h1>${esc(T.HERO||'距離第一場')}</h1>
     <div class="cd"><b>${big}</b>${typeof big==='number'?'<span>天</span>':''}</div>
@@ -1058,30 +1068,31 @@ document.addEventListener('input',e=>{
 
 /* ---------- todo ---------- */
 function ckRow(x,day){
+  if(todoEdit)return `<div class="ck tdel"><span class="tx"><div>${esc(x.t)}</div>${x.s?`<small>${esc(x.s)}</small>`:''}</span>${day?`<span class="dd num">11/${day}</span>`:''}<button class="wb ghost" data-tdel="${x.id}" aria-label="刪除 ${esc(x.t)}">${ICON.trash}</button></div>`;
   return `<button class="ck" role="checkbox" aria-checked="${!!checks[x.id]}" data-ck="${x.id}"><span class="box">${ICON.check}</span><span class="tx"><div>${esc(x.t)}</div>${x.s?`<small>${esc(x.s)}</small>`:''}</span>${day?`<span class="dd num">11/${day}</span>`:''}</button>`;
 }
 const TTYPE={thsr:'車班',late21:'車班',late:'車班',thsr2:'車班',thaiyuan:'訂位',warm:'訂位',zhudian:'營業時間',market:'營業時間',luzao:'營業時間',sui33:'營業時間',beishan:'營業時間',puji:'營業時間',cousin:'住宿與行李',bag:'住宿與行李',vip:'演唱會'};
-const TORDER=['車班','訂位','營業時間','住宿與行李','演唱會'];
-const TCOL={'車班':['#E3E7FB','#1B1B1B'],'訂位':['#FFC59E','#1B1B1B'],'營業時間':['#E4F47C','#1B1B1B'],'住宿與行李':['#F3EAD6','#1B1B1B'],'演唱會':['#DCB9F7','#1B1B1B']};
-let todoMode='day', todoOpen=null;
+const TORDER=['車班','訂位','營業時間','住宿與行李','演唱會','其他'];
+const TCOL={'車班':['#E3E7FB','#1B1B1B'],'訂位':['#FFC59E','#1B1B1B'],'營業時間':['#E4F47C','#1B1B1B'],'住宿與行李':['#F3EAD6','#1B1B1B'],'演唱會':['#DCB9F7','#1B1B1B'],'其他':['#E8E8E4','#1B1B1B']};
+let todoMode='day', todoOpen=null, todoEdit=false, todoLast=null;
 try{const m=localStorage.getItem('bts8-tmode');if(m==='day'||m==='type')todoMode=m}catch(e){}
 function todoGroups(){
   const g=todoMode==='day'
-    ? DAYS.map(d=>({k:'d'+d.d,title:`11/${d.d}`,sub:`週${d.wd}・${SHORT[d.d]}`,items:TODOS.filter(x=>x.d===d.d),showDay:false,col:[DAYCOL[d.d][0],DAYCOL[d.d][1]]}))
-    : TORDER.map(t=>({k:'t'+t,title:t,sub:'',items:TODOS.filter(x=>(TTYPE[x.id]||'其他')===t),showDay:true,col:TCOL[t]}));
-  return g.filter(x=>x.items.length).concat([{k:'pack',title:'要帶的東西',sub:'',items:PACK,showDay:false,col:['#EDEBE0','#1B1B1B']}]);
+    ? DAYS.map(d=>({k:'d'+d.d,title:`11/${d.d}`,sub:`週${d.wd}・${SHORT[d.d]}`,items:TL().filter(x=>x.d===d.d),showDay:false,col:[DAYCOL[d.d][0],DAYCOL[d.d][1]]}))
+    : TORDER.map(t=>({k:'t'+t,title:t,sub:'',items:TL().filter(x=>(x.type||TTYPE[x.id]||'其他')===t),showDay:true,col:TCOL[t]}));
+  return g.filter(x=>x.items.length||todoEdit).concat([{k:'pack',title:'要帶的東西',sub:'',items:PL2(),showDay:false,col:['#EDEBE0','#1B1B1B']}]);
 }
 function renderTodo(){
-  const left=TODOS.filter(x=>!checks[x.id]).length, gs=todoGroups();
+  const TODOS=TL(), left=TODOS.filter(x=>!checks[x.id]).length, gs=todoGroups();
   if(!todoOpen){todoOpen=new Set();const f=gs.find(g=>g.items.some(x=>!checks[x.id]));if(f)todoOpen.add(f.k)}
-  let h=`<header class="ph"><h1>待確認</h1><span class="phn">${TODOS.length-left}<small> / ${TODOS.length}</small></span></header>
-  <div class="bar" aria-label="已完成 ${TODOS.length-left} 項，共 ${TODOS.length} 項"><i style="width:${(TODOS.length-left)/TODOS.length*100}%"></i><span>已完成 ${TODOS.length-left} / ${TODOS.length}</span></div>
+  let h=`<header class="ph"><h1>待確認</h1><span class="tph"><span class="phn">${TODOS.length-left}<small> / ${TODOS.length}</small></span><button class="ib ${todoEdit?'on':''}" data-tedit aria-label="${todoEdit?'完成編輯':'新增或刪除待確認項目'}">${todoEdit?ICON.check:ICON.pen}</button></span></header>
+  <div class="bar" aria-label="已完成 ${TODOS.length-left} 項，共 ${TODOS.length} 項"><i style="width:${TODOS.length?(TODOS.length-left)/TODOS.length*100:0}%"></i><span>已完成 ${TODOS.length-left} / ${TODOS.length}</span></div>
   <div class="seg" role="group" aria-label="分類方式"><button data-tseg="day" aria-pressed="${todoMode==='day'}">依日期</button><button data-tseg="type" aria-pressed="${todoMode==='type'}">依類型</button></div>`;
   gs.forEach(g=>{
     const n=g.items.length, d=g.items.filter(x=>checks[x.id]).length, open=todoOpen.has(g.k);
     h+=`<section class="grp${d===n?' alldone':''}" style="--gc:${g.col[0]};--gt:${g.col[1]}"><button class="gh" data-tg="${g.k}" aria-expanded="${open}" aria-controls="g-${g.k}">
       <span class="gt"><b>${esc(g.title)}</b>${g.sub?`<small>${esc(g.sub)}</small>`:''}</span><span class="gc">${d===n?'✓ 都好了':`${d} / ${n}`}</span><span class="gv">${ICON.chev}</span></button>
-      ${open?`<div class="gb" id="g-${g.k}">${g.items.map(x=>ckRow(x,g.showDay?x.d:0)).join('')}</div>`:''}</section>`;
+      ${open?`<div class="gb" id="g-${g.k}">${g.items.map(x=>ckRow(x,g.showDay?x.d:0)).join('')}${todoEdit?`<div class="tadd"><input class="fi" id="ta-t-${g.k}" placeholder="${g.k==='pack'?'要帶什麼':'要確認什麼'}" aria-label="新增項目"><input class="fi" id="ta-s-${g.k}" placeholder="補充說明（選填）" aria-label="補充說明"><button class="fbtn" data-tadd="${g.k}">${ICON.plus}新增</button></div>`:''}</div>`:''}</section>`;
   });
   document.getElementById('v-todo').innerHTML=h;
 }
@@ -1091,7 +1102,7 @@ function render(){
   renderHome();renderPlan();renderMoney();renderTodo();
   ['home','plan','money','todo'].forEach(v=>{document.getElementById('v-'+v).hidden=v!==view});
   document.querySelectorAll('.nav button').forEach(b=>{if(b.dataset.v===view)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
-  const left=TODOS.filter(x=>!checks[x.id]).length;const td=document.getElementById('todoDot');td.hidden=!left;td.textContent=left;
+  const left=TL().filter(x=>!checks[x.id]).length;const td=document.getElementById('todoDot');td.hidden=!left;td.textContent=left;
 }
 function renderAll(){renderHome();renderPlan();renderMoney()}
 function removeFromDay(id){fixPL();let found=false;Object.keys(PL.add).forEach(k=>{const a=PL.add[k];const n=a.filter(x=>x.id!==id);if(n.length!==a.length){PL.add[k]=n;found=true}});if(!found)PL.del[id]=true;delete PL.ov[id];delete DONE[id];saveDone();openItems.delete(id)}
@@ -1099,7 +1110,7 @@ function resetUI(){openItems.clear();editItems.clear();wishEdit.clear();addOpen=
 function go(v,keepDay){resetUI();if(!keepDay)curDay=today?today.d:19;const tt=document.getElementById('toast');if(tt)tt.hidden=true;view=v;try{localStorage.setItem('bts8-view',v)}catch(e){}render();window.scrollTo(0,0)}
 document.addEventListener('click',e=>{
   if(skipClick&&e.target.closest('.tl')){skipClick=false;return}
-  const t=e.target.closest('[data-v],[data-go],[data-day],[data-tog],[data-pick],[data-ck],[data-mv],[data-reset],[data-done],[data-addopen],[data-addcancel],[data-addsave],[data-newcat],[data-wishopen],[data-wfold],[data-wtab],[data-wishcancel],[data-wishsave],[data-wishcat],[data-wadd],[data-wdel],[data-del],[data-towish],[data-edit],[data-medit],[data-madd],[data-mdel],[data-tseg],[data-tg],[data-wedit],[data-tidy],[data-undo],[data-mp],[data-wtog],.row');
+  const t=e.target.closest('[data-v],[data-go],[data-day],[data-tog],[data-pick],[data-ck],[data-mv],[data-reset],[data-done],[data-addopen],[data-addcancel],[data-addsave],[data-newcat],[data-wishopen],[data-wfold],[data-wtab],[data-wishcancel],[data-wishsave],[data-wishcat],[data-wadd],[data-wdel],[data-del],[data-towish],[data-edit],[data-medit],[data-madd],[data-mdel],[data-tseg],[data-tg],[data-wedit],[data-tidy],[data-undo],[data-mp],[data-wtog],[data-tedit],[data-tdel],[data-tadd],.row');
   if(!t)return;
   if(t.dataset.v)return go(t.dataset.v);
   if(t.dataset.go)return go(t.dataset.go);
@@ -1123,11 +1134,20 @@ document.addEventListener('click',e=>{
   if('wfold' in t.dataset){wishFold=!wishFold;try{localStorage.setItem('bts8-wishfold',wishFold?'1':'0')}catch(e){}renderPlan();return}
   if(t.dataset.wtab){wishTab=t.dataset.wtab;wishOpen=false;renderPlan();return}
   if('tidy' in t.dataset){lastPL=JSON.stringify(PL);tidyDay();return}
+  if(t.dataset.tundo){if(todoLast){checks=JSON.parse(todoLast);todoLast=null;saveChecks();render()}document.getElementById('toast').hidden=true;return}
   if('undo' in t.dataset){if(lastPL){PL=JSON.parse(lastPL);fixPL();savePL();renderAll()}document.getElementById('toast').hidden=true;return}
   if(t.dataset.edit){const id=t.dataset.edit;editItems.has(id)?editItems.delete(id):editItems.add(id);renderPlan();if(editItems.has(id)){const f=document.querySelector(`input[data-f="${t.dataset.focus||'title'}"][data-id="${id}"]`);f&&f.focus()}else renderHome();return}
   if('medit' in t.dataset){moneyEdit=!moneyEdit;renderMoney();return}
   if(t.dataset.madd){const k=t.dataset.madd;MONEY[k].push(k==='stays'?{id:uid(),name:'',total:0,split:1,note:''}:{id:uid(),name:'',amt:''});saveMoney();renderMoney();const ins=document.querySelectorAll(`[data-mk="${k}"][data-mf="name"]`);ins.length&&ins[ins.length-1].focus();return}
   if(t.dataset.mdel){const [k,i]=t.dataset.mdel.split(':');MONEY[k].splice(+i,1);saveMoney();renderMoney();return}
+  if('tedit' in t.dataset){todoEdit=!todoEdit;renderTodo();return}
+  if(t.dataset.tdel){const id=t.dataset.tdel,o=TX();todoLast=JSON.stringify(checks);
+    const a=o.add.findIndex(x=>x.id===id); if(a>=0)o.add.splice(a,1); else o.del[id]=true; delete checks[id];
+    saveChecks();render();toast('已刪除',true);document.querySelector('#toast [data-undo]').dataset.tundo='1';return}
+  if(t.dataset.tadd){const k=t.dataset.tadd,ti=document.getElementById('ta-t-'+k),v=(ti.value||'').trim();if(!v){ti.focus();return}
+    const it={id:'t'+uid(),t:v,s:(document.getElementById('ta-s-'+k).value||'').trim()};
+    if(k==='pack')it.pack=true; else if(k[0]==='d')it.d=+k.slice(1); else {it.type=k.slice(1);it.d=0}
+    TX().add.push(it);saveChecks();render();const n=document.getElementById('ta-t-'+k);n&&n.focus();return}
   if(t.dataset.tseg){todoMode=t.dataset.tseg;todoOpen=null;try{localStorage.setItem('bts8-tmode',todoMode)}catch(e){}renderTodo();return}
   if(t.dataset.tg){const k=t.dataset.tg;todoOpen.has(k)?todoOpen.delete(k):todoOpen.add(k);renderTodo();return}
   if(t.dataset.wtog){const id=t.dataset.wtog;wishEdit.has(id)?wishEdit.delete(id):wishEdit.add(id);renderPlan();return}
